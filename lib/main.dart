@@ -21,7 +21,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'DeliveryApp',
       theme: ThemeData(primarySwatch: Colors.deepOrange),
-      initialRoute: "/login", // 👈 กำหนด route แรก
+      initialRoute: "/login",
       routes: {
         "/login": (context) => const LoginPage(),
         "/homeUser": (context) => const UserHomePage(),

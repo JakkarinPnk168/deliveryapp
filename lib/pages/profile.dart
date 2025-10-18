@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:deliveryapp/pages/login.dart'; // ✅ import หน้า Login
+import 'package:deliveryapp/pages/login.dart';
+import 'package:deliveryapp/services/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,25 +11,29 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   int _currentIndex = 4; // ค่า default = โปรไฟล์
+  final _auth = AuthService();
+  late Future<UserData> _future;
 
-  Future<Map<String, dynamic>?> _getUserData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
+  @override
+  void initState() {
+    super.initState();
+    _future = _auth.getMe();
+  }
 
-    // ✅ เช็คทั้ง users และ riders
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    if (userDoc.exists) return userDoc.data();
+  Future<void> _reload() async {
+    setState(() {
+      _future = _auth.getMe();
+    });
+  }
 
-    final riderDoc = await FirebaseFirestore.instance
-        .collection('riders')
-        .doc(uid)
-        .get();
-    if (riderDoc.exists) return riderDoc.data();
-
-    return null;
+  Future<void> _logout() async {
+    await _auth.logout();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   @override
@@ -43,21 +46,56 @@ class _ProfilePageState extends State<ProfilePage> {
         centerTitle: true,
         title: const Text("โปรไฟล์", style: TextStyle(color: Colors.white)),
       ),
-      body: FutureBuilder<Map<String, dynamic>?>(
-        future: _getUserData(),
+      body: FutureBuilder<UserData>(
+        future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final userData = snapshot.data;
-          if (userData == null) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("ไม่สามารถโหลดข้อมูลโปรไฟล์ได้"),
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error.toString(),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _reload,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                      ),
+                      child: const Text("ลองใหม่"),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _logout,
+                      child: const Text("ออกจากระบบ"),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          final me = snapshot.data;
+          if (me == null) {
             return const Center(child: Text("ไม่พบข้อมูลผู้ใช้"));
           }
 
-          final name = userData['name'] ?? '';
-          final phone = userData['phone'] ?? '';
-          final profileUrl = userData['profile_img'];
+          final name = me.name;
+          final phone = me.phone;
+          final profileUrl = me.profileImage.isNotEmpty
+              ? me.profileImage
+              : null;
 
           return Padding(
             padding: const EdgeInsets.all(20),
@@ -88,8 +126,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
                 // ปุ่มแก้ไข
                 ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: ไปหน้าแก้ไขโปรไฟล์
+                  onPressed: () async {
+                    // TODO: ไปหน้าแก้ไขโปรไฟล์ของคุณ
+                    // ตัวอย่าง: final updated = await Navigator.pushNamed(context, "/editProfile");
+                    // if (updated == true) _reload();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("ยังไม่เปิดใช้งานหน้าแก้ไขโปรไฟล์"),
+                      ),
+                    );
                   },
                   icon: const Icon(Icons.edit, size: 18, color: Colors.white),
                   label: const Text(
@@ -121,19 +166,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                 // ปุ่มออกจากระบบ
                 ElevatedButton.icon(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    if (!mounted) return;
-
-                    // ✅ กลับไป LoginPage
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginPage(),
-                      ),
-                      (route) => false,
-                    );
-                  },
+                  onPressed: _logout,
                   icon: const Icon(Icons.logout, color: Colors.white),
                   label: const Text(
                     "ออกจากระบบ",
@@ -153,18 +186,18 @@ class _ProfilePageState extends State<ProfilePage> {
         },
       ),
 
-      // 🔹 Bottom Navigation Bar
+      // 🔹 Bottom Navigation Bar (เหมือนเดิม)
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
-        onTap: (index) {
+        onTap: (index) async {
           setState(() => _currentIndex = index);
           if (index == 0) {
             Navigator.pushReplacementNamed(context, "/homeUser");
           } else if (index == 4) {
-            // โปรไฟล์ (หน้านี้)
+            // หน้านี้
           }
         },
         items: const [

@@ -1,46 +1,59 @@
-import 'package:deliveryapp/pages/profile.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
-class UserHomePage extends StatelessWidget {
+import 'package:deliveryapp/pages/profile.dart';
+import 'package:deliveryapp/services/auth_service.dart'; // ← ใช้ getMe()
+
+class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
 
-  Future<Map<String, dynamic>?> _getUserData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return null;
+  @override
+  State<UserHomePage> createState() => _UserHomePageState();
+}
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .get();
-    return doc.data();
+class _UserHomePageState extends State<UserHomePage> {
+  final _auth = AuthService();
+  late Future<UserData> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _auth.getMe();
+  }
+
+  Future<void> _reload() async {
+    setState(() {
+      _future = _auth.getMe();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE9F6F5), // สีพื้นหลังอ่อนๆ
+      backgroundColor: const Color(0xFFE9F6F5),
       body: SafeArea(
-        child: FutureBuilder<Map<String, dynamic>?>(
-          future: _getUserData(),
+        child: FutureBuilder<UserData>(
+          future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-
-            final userData = snapshot.data;
-            if (userData == null) {
+            if (snapshot.hasError) {
+              return Center(child: Text("เกิดข้อผิดพลาด: ${snapshot.error}"));
+            }
+            if (!snapshot.hasData) {
               return const Center(child: Text("ไม่พบข้อมูลผู้ใช้"));
             }
 
-            final phone = userData['phone'] ?? '';
-            final profileUrl = userData['profile_img'];
+            final me = snapshot.data!;
+            final phone = me.phone;
+            final profileUrl = (me.profileImage.isNotEmpty)
+                ? me.profileImage
+                : null;
 
             return Column(
               children: [
-                // 🔹 Header
+                // 🔹 Header (เหมือนเดิม)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -60,7 +73,6 @@ class UserHomePage extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // โลโก้ + ชื่อแอป (อยู่บรรทัดเดียว, สีแตกต่าง)
                       RichText(
                         text: TextSpan(
                           style: GoogleFonts.cherryBombOne(
@@ -79,8 +91,6 @@ class UserHomePage extends StatelessWidget {
                           ],
                         ),
                       ),
-
-                      // โปรไฟล์ user
                       Row(
                         children: [
                           Text(
@@ -107,7 +117,7 @@ class UserHomePage extends StatelessWidget {
 
                 const SizedBox(height: 30),
 
-                // 🔹 Menu buttons
+                // 🔹 Menu buttons (เหมือนเดิม)
                 Expanded(
                   child: GridView.count(
                     crossAxisCount: 2,
@@ -145,18 +155,19 @@ class UserHomePage extends StatelessWidget {
         ),
       ),
 
-      // 🔹 Bottom Navigation
+      // 🔹 Bottom Navigation (เหมือนเดิม) + รีโหลดหลังกลับจากโปรไฟล์
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.green,
         unselectedItemColor: Colors.grey,
-        onTap: (index) {
+        onTap: (index) async {
           if (index == 4) {
-            // index 4 = โปรไฟล์
-            Navigator.push(
+            await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ProfilePage()),
             );
+            // กลับมาหน้านี้แล้วรีโหลดข้อมูลเผื่อแก้โปรไฟล์
+            if (mounted) _reload();
           }
         },
         items: const [
@@ -173,7 +184,7 @@ class UserHomePage extends StatelessWidget {
     );
   }
 
-  // 🔹 Card Builder
+  // 🔹 Card Builder (เหมือนเดิม)
   Widget _buildMenuCard({
     required IconData icon,
     required String title,
@@ -187,11 +198,11 @@ class UserHomePage extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               blurRadius: 6,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),

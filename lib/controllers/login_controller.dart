@@ -1,76 +1,80 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart'; // มี UserData และ ApiException อยู่ในไฟล์นี้
 
 class LoginController {
-  final phoneController = TextEditingController();
-  final passwordController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
-  final _auth = FirebaseAuth.instance;
-  final _db = FirebaseFirestore.instance;
+  final AuthService _authService;
+  bool isSubmitting = false;
 
-  // Helper: เบอร์ → email
-  String _emailFromPhone(String phone) {
-    final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    return "$digits@lb.app";
+  LoginController({AuthService? authService})
+    : _authService = authService ?? AuthService();
+
+  // แปลง +66xxxxxxxxx -> 0xxxxxxxxx และเก็บเฉพาะตัวเลข/+
+  String _normalizePhone(String input) {
+    var s = input.trim().replaceAll(RegExp(r'[^0-9\+]'), '');
+    if (s.startsWith('+66')) s = '0${s.substring(3)}';
+    return s;
   }
 
-  // ✅ ฟังก์ชันเข้าสู่ระบบ
-  Future<void> login(BuildContext context) async {
-    final phone = phoneController.text.trim();
-    final password = passwordController.text.trim();
+  Future<bool> login(BuildContext context) async {
+    if (isSubmitting) return false;
 
-    if (phone.isEmpty || password.isEmpty) {
+    final phone = _normalizePhone(phoneController.text);
+    final pass = passwordController.text;
+
+    // ตรวจสอบ input
+    if (phone.isEmpty || pass.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("กรุณากรอกเบอร์โทรและรหัสผ่าน")),
+        const SnackBar(content: Text('กรุณากรอกเบอร์โทรและรหัสผ่าน')),
       );
-      return;
+      return false;
+    }
+    // เบอร์ไทย 10 หลักขึ้นต้น 0
+    if (!RegExp(r'^[0]\d{9}$').hasMatch(phone)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กรุณากรอกเบอร์โทรให้ถูกต้อง (เช่น 0812345678)'),
+        ),
+      );
+      return false;
     }
 
+    isSubmitting = true;
     try {
-      final email = _emailFromPhone(phone);
-      final cred = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      final UserData me = await _authService.login(
+        phone: phone,
+        password: pass,
       );
 
-      final uid = cred.user!.uid;
-
-      // ✅ ตรวจสอบ role
-      String role = "user"; // default
-      final userDoc = await _db.collection("users").doc(uid).get();
-      if (userDoc.exists) {
-        role = userDoc['role'] ?? "user";
-      } else {
-        final riderDoc = await _db.collection("riders").doc(uid).get();
-        if (riderDoc.exists) {
-          role = riderDoc['role'] ?? "rider";
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('เข้าสู่ระบบสำเร็จ (${me.role})')),
+        );
+        if (me.role == 'rider') {
+          Navigator.pushReplacementNamed(context, '/homeRider');
+        } else {
+          Navigator.pushReplacementNamed(context, '/homeUser');
         }
       }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("เข้าสู่ระบบสำเร็จ ($role)")));
-
-      if (role == "user") {
-        Navigator.pushReplacementNamed(context, "/homeUser");
-      } else {
-        Navigator.pushReplacementNamed(context, "/homeRider");
+      return true;
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
-    } on FirebaseAuthException catch (e) {
-      String message = "เกิดข้อผิดพลาด";
-      if (e.code == "user-not-found") {
-        message = "ไม่พบบัญชีนี้ กรุณาสมัครสมาชิก";
-      } else if (e.code == "wrong-password") {
-        message = "รหัสผ่านไม่ถูกต้อง";
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      return false;
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("เกิดข้อผิดพลาด: $e")));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+      }
+      return false;
+    } finally {
+      isSubmitting = false;
     }
   }
 
