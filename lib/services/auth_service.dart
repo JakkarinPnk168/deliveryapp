@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../config/app_config.dart';
 
 class UserData {
   final String userId;
@@ -44,10 +45,8 @@ class ApiException implements Exception {
 }
 
 class AuthService {
-  final String baseUrl = const String.fromEnvironment(
-    'API_BASE',
-    defaultValue: 'http://10.0.2.2:3000',
-  );
+  final String baseUrl = AppConfig.apiBaseUrl;
+
   final _storage = const FlutterSecureStorage();
 
   Future<Map<String, dynamic>> _decode(http.StreamedResponse res) async {

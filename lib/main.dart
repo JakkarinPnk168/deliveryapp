@@ -1,4 +1,5 @@
 import 'package:deliveryapp/firebase_options.dart';
+import 'package:deliveryapp/pages/edit_profile.dart';
 import 'package:deliveryapp/pages/home_rider.dart';
 import 'package:deliveryapp/pages/home_user.dart';
 import 'package:deliveryapp/pages/login.dart';
@@ -26,7 +27,7 @@ class MyApp extends StatelessWidget {
         "/login": (context) => const LoginPage(),
         "/homeUser": (context) => const UserHomePage(),
         "/profile": (context) => const ProfilePage(),
-
+        '/editProfile': (context) => const EditProfilePage(),
         "/homeRider": (context) => const RiderHomePage(),
       },
     );

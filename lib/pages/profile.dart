@@ -127,14 +127,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 // ปุ่มแก้ไข
                 ElevatedButton.icon(
                   onPressed: () async {
-                    // TODO: ไปหน้าแก้ไขโปรไฟล์ของคุณ
-                    // ตัวอย่าง: final updated = await Navigator.pushNamed(context, "/editProfile");
-                    // if (updated == true) _reload();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("ยังไม่เปิดใช้งานหน้าแก้ไขโปรไฟล์"),
-                      ),
+                    final updated = await Navigator.pushNamed(
+                      context,
+                      '/editProfile',
                     );
+                    if (updated == true) _reload();
                   },
                   icon: const Icon(Icons.edit, size: 18, color: Colors.white),
                   label: const Text(
@@ -148,6 +145,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 20),
 
                 // ปุ่มจัดการที่อยู่
@@ -158,9 +156,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   tileColor: Colors.white,
                   leading: const Icon(Icons.location_on, color: Colors.green),
                   title: const Text("จัดการที่อยู่"),
-                  onTap: () {
-                    // TODO: ไปหน้า Address Management
-                  },
+                  onTap: () {},
                 ),
                 const Spacer(),
 
