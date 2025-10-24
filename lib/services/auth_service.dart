@@ -49,12 +49,15 @@ class AuthService {
 
   final _storage = const FlutterSecureStorage();
 
+<<<<<<< HEAD
   Future<String?> get token async {
     return await _storage.read(key: 'token');
   }
 
   get currentUser => null;
 
+=======
+>>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
   Future<Map<String, dynamic>> _decode(http.StreamedResponse res) async {
     final body = await res.stream.bytesToString();
     final map = body.isNotEmpty ? json.decode(body) : {};

@@ -3,20 +3,26 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<<<<<<< HEAD
     <!-- -หห -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+=======
+>>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
     <!-- สำหรับ Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <application
         android:label="deliveryapp"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+<<<<<<< HEAD
 
     <meta-data android:name="com.google.android.geo.API_KEY"
                android:value="AIzaSyAM_sMqeG53zLUbrRWvwJl7N5ICzAvYlEM"/>
 
+=======
+>>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
         <activity
             android:name=".MainActivity"
             android:exported="true"
