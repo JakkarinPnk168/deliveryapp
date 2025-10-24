@@ -9,10 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_secure_storage_windows
   geolocator_windows
   permission_handler_windows
-<<<<<<< HEAD
   url_launcher_windows
-=======
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

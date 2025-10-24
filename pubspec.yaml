@@ -35,10 +35,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^6.2.1
-<<<<<<< HEAD
   firebase_core: ^4.2.0
-=======
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
   firebase_storage: ^13.0.2
   image_picker: ^1.2.0
   http: ^1.5.0
@@ -47,13 +44,10 @@ dependencies:
   latlong2: ^0.9.0
   geolocator: ^12.0.0
   permission_handler: ^11.3.1
-<<<<<<< HEAD
   geolocator_android: 4.5.5
   flutter_map: ^8.2.2
   google_maps_flutter: ^2.13.1
   url_launcher: ^6.2.5
-=======
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
 
 dev_dependencies:
   flutter_test:

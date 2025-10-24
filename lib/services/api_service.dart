@@ -1,17 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-<<<<<<< HEAD
+
 import 'dart:typed_data';
-=======
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
+
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/user_model.dart';
 import '../models/address_model.dart'; // ✅ ต้องมี import นี้
-<<<<<<< HEAD
+
 import '../models/order_model.dart'; // ✅ สำหรับ Rider orders
-=======
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
+
 import '../config/app_config.dart';
 
 class ApiService {
@@ -61,11 +59,10 @@ class ApiService {
     if (imageFile != null) {
       request.files.add(
         await http.MultipartFile.fromPath(
-<<<<<<< HEAD
           'profileImage',
-=======
+
           'profileImage', // ฟิลด์ใน backend
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
+
           imageFile.path,
           contentType: MediaType('image', _guessExt(imageFile.path)),
         ),
@@ -116,11 +113,10 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------------
-<<<<<<< HEAD
+
   // 🔹 4. เพิ่มที่อยู่ใหม่
-=======
+
   // 🔹 4. เพิ่มที่อยู่ใหม่ (POST → Firestore)
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
   // ---------------------------------------------------------------------------
   Future<AddressModel> createAddress(String token, AddressModel address) async {
     final url = Uri.parse('$baseUrl/api/users/me/addresses');
@@ -201,7 +197,6 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------------
-<<<<<<< HEAD
   // 🔹 7. Rider orders: ดึงรายการงาน
   // ---------------------------------------------------------------------------
   Future<List<Order>> getRiderOrders(String token) async {
@@ -276,8 +271,7 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------------
-=======
->>>>>>> 6916f3ce840ffa46de1a4cf3f0f21127ced845df
+
   // 🔹 Utility: ตรวจสอบ token หรือ network error
   // ---------------------------------------------------------------------------
   static bool isUnauthorizedError(Object e) {
