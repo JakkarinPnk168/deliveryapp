@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:get/get.dart';
+import 'package:awesome_dialog/awesome_dialog.dart'; // ✅ ใช้ AwesomeDialog แทน SweetAlert2
 import '../controllers/edit_profile_controller.dart';
 import '../services/api_service.dart';
 
@@ -57,6 +59,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
               ),
             ),
             iconTheme: const IconThemeData(color: Colors.white),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Get.back(result: false),
+            ),
           ),
           body: controller.loading
               ? const Center(child: CircularProgressIndicator())
@@ -84,11 +90,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
         children: [
-          // ✅ ส่วนรูปโปรไฟล์ + ปุ่มกล้อง
           _avatarSection(user.profileImage, primaryGreen),
           const SizedBox(height: 24),
-
-          // ✅ กล่องฟอร์ม (Card)
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -131,7 +134,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     },
                   ),
                   const SizedBox(height: 16),
-
                   const Text(
                     'เบอร์โทร',
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
@@ -168,20 +170,35 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           : () async {
                               if (!_formKey.currentState!.validate()) return;
                               final ok = await controller.save();
-                              if (!mounted) return;
+
                               if (ok) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('บันทึกสำเร็จ')),
-                                );
-                                Navigator.pop(context, true);
+                                AwesomeDialog(
+                                  context: context,
+                                  dialogType: DialogType.noHeader,
+                                  animType: AnimType.bottomSlide,
+                                  title: 'บันทึกสำเร็จ ',
+                                  desc:
+                                      'ข้อมูลโปรไฟล์ของคุณได้รับการอัปเดตแล้ว',
+                                  btnOkText: 'ตกลง',
+                                  btnOkColor: primaryGreen,
+                                  btnOkOnPress: () {
+                                    Get.back(result: true);
+                                  },
+                                ).show();
                               } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'บันทึกไม่สำเร็จ: ${controller.errorMessage ?? ''}',
-                                    ),
-                                  ),
-                                );
+                                // ❌ แสดง popup error ด้วย AwesomeDialog
+                                AwesomeDialog(
+                                  context: context,
+                                  dialogType: DialogType.error,
+                                  animType: AnimType.bottomSlide,
+                                  title: 'เกิดข้อผิดพลาด ❌',
+                                  desc:
+                                      controller.errorMessage ??
+                                      'ไม่สามารถบันทึกข้อมูลได้',
+                                  btnOkText: 'ปิด',
+                                  btnOkColor: Colors.redAccent,
+                                  btnOkOnPress: () {},
+                                ).show();
                               }
                             },
                       child: controller.saving
@@ -212,7 +229,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  // ✅ รูปโปรไฟล์พร้อมปุ่มกล้อง
   Widget _avatarSection(String? imageUrl, Color primaryGreen) {
     final File? file = controller.pickedImageFile;
     return Column(

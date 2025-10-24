@@ -1,3 +1,4 @@
+import 'package:deliveryapp/pages/address_add.dart';
 import 'package:flutter/material.dart';
 import 'package:deliveryapp/pages/login.dart';
 import 'package:deliveryapp/services/auth_service.dart';
@@ -156,7 +157,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   tileColor: Colors.white,
                   leading: const Icon(Icons.location_on, color: Colors.green),
                   title: const Text("จัดการที่อยู่"),
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pushNamed(context, '/addressAdd');
+                  },
                 ),
                 const Spacer(),
 

@@ -1,139 +1,151 @@
-import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:awesome_dialog/awesome_dialog.dart'; // ✅ เพิ่ม SweetAlert
+import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/address_model.dart';
 
-class AddressAddController extends ChangeNotifier {
+class AddressAddController extends GetxController {
   final ApiService api;
   final Future<String?> Function() tokenProvider;
 
   AddressAddController({required this.api, required this.tokenProvider});
 
-  // --- 🔹 สถานะ UI ---
-  bool loading = false; // ใช้เผื่ออนาคตตอน preload data
-  bool locating = false; // ระหว่างหาพิกัด
-  bool saving = false; // ระหว่างบันทึก
-  String? errorMessage; // แสดงข้อความ error บนหน้าจอ
+  var loading = false.obs;
+  var locating = false.obs;
+  var saving = false.obs;
+  var errorMessage = ''.obs;
 
-  // --- 🔹 พิกัดที่เลือกบนแผนที่ ---
-  LatLng? selectedLocation;
+  Rxn<LatLng> selectedLocation = Rxn<LatLng>();
 
-  // --- 🔹 Controllers สำหรับฟอร์มกรอกข้อมูลที่อยู่ ---
-  final labelController = TextEditingController(); // เช่น "บ้าน", "ที่ทำงาน"
-  final recipientNameController = TextEditingController(); // ชื่อผู้รับ
-  final phoneController = TextEditingController();
-  final addressDetailController = TextEditingController(); // บ้านเลขที่/ซอย/ถนน
-  final subDistrictController = TextEditingController(); // แขวง/ตำบล
-  final districtController = TextEditingController(); // เขต/อำเภอ
-  final provinceController = TextEditingController(); // จังหวัด
-  final postalCodeController = TextEditingController(); // รหัสไปรษณีย์
+  var label = ''.obs;
+  var recipientName = ''.obs;
+  var phone = ''.obs;
+  var addressDetail = ''.obs;
+  var subDistrict = ''.obs;
+  var district = ''.obs;
+  var province = ''.obs;
+  var postalCode = ''.obs;
 
-  // ---------------------------------------------------------------------------
-  // 🔹 ตั้งค่าพิกัดที่เลือกบนแผนที่
-  // ---------------------------------------------------------------------------
   void setSelected(LatLng position) {
-    selectedLocation = position;
-    notifyListeners();
+    selectedLocation.value = position;
+    reverseGeocode(position);
   }
 
-  // ---------------------------------------------------------------------------
-  // 🔹 ใช้ตำแหน่งปัจจุบัน (จาก Geolocator)
-  // ---------------------------------------------------------------------------
-  Future<void> useCurrentLocation(
-    Future<LatLng?> Function() getCurrentPosition,
-  ) async {
-    locating = true;
-    errorMessage = null;
-    notifyListeners();
-
+  Future<void> reverseGeocode(LatLng position) async {
     try {
-      final current = await getCurrentPosition();
-      if (current != null) {
-        selectedLocation = current;
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+
+        String street = (place.street ?? '').trim();
+        final subLocality = (place.subLocality ?? '').trim();
+        final locality = (place.locality ?? '').trim();
+        final admin = (place.administrativeArea ?? '').trim();
+        final postal = (place.postalCode ?? '').trim();
+        final country = (place.country ?? '').trim();
+
+        if (street.contains('+') && street.length <= 15) {
+          street = '';
+        }
+
+        final line1 = [
+          if (street.isNotEmpty) street,
+          if (subLocality.isNotEmpty) subLocality,
+          if (locality.isNotEmpty) locality,
+        ].join(', ');
+
+        final line2 = [
+          if (admin.isNotEmpty) admin,
+          if (postal.isNotEmpty) postal,
+          if (country.isNotEmpty) country,
+        ].join(', ');
+
+        addressDetail.value = "$line1\n$line2";
+
+        subDistrict.value = subLocality;
+        district.value = locality;
+        province.value = admin;
+        postalCode.value = postal;
       } else {
-        errorMessage = 'ไม่สามารถดึงพิกัดปัจจุบันได้';
+        errorMessage.value = 'No placemark found for this location.';
       }
     } catch (e) {
-      errorMessage = 'เกิดข้อผิดพลาดระหว่างหาตำแหน่ง: ${e.toString()}';
-    } finally {
-      locating = false;
-      notifyListeners();
+      errorMessage.value = 'Cannot get address: $e';
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 🔹 บันทึกที่อยู่ใหม่
-  // ---------------------------------------------------------------------------
-  Future<bool> submit() async {
-    if (saving) return false;
-    if (selectedLocation == null) {
-      errorMessage = 'กรุณาเลือกตำแหน่งบนแผนที่ก่อน';
-      notifyListeners();
-      return false;
-    }
+  Future<void> useCurrentLocation() async {
+    locating.value = true;
+    errorMessage.value = '';
 
-    // ตรวจค่าที่จำเป็นในฟอร์ม
-    if (addressDetailController.text.trim().isEmpty) {
-      errorMessage = 'กรุณากรอกข้อมูลที่อยู่ให้ครบถ้วน';
-      notifyListeners();
-      return false;
+    try {
+      final pos = await getCurrentLatLng();
+      if (pos != null) {
+        selectedLocation.value = pos;
+        await reverseGeocode(pos);
+      } else {
+        errorMessage.value = 'Cannot fetch current location';
+      }
+    } catch (e) {
+      errorMessage.value = 'Error fetching location: ${e.toString()}';
+    } finally {
+      locating.value = false;
     }
+  }
 
-    saving = true;
-    errorMessage = null;
-    notifyListeners();
+  Future<LatLng?> getCurrentLatLng() async {
+    final status = await Permission.location.request();
+    if (!status.isGranted) return null;
+
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+    return LatLng(pos.latitude, pos.longitude);
+  }
+
+  // ---------------------------------------------------------------------------
+  // ✅ ปรับส่วนนี้ให้ใช้ SweetAlert แสดงผล
+  // ---------------------------------------------------------------------------
+  Future<AddressModel?> submit() async {
+    if (saving.value) return null;
+    saving.value = true;
 
     try {
       final token = await tokenProvider();
-      if (token == null || token.isEmpty) {
-        throw Exception('ไม่พบ Token กรุณาเข้าสู่ระบบใหม่');
-      }
+      if (token == null || token.isEmpty) throw Exception("Missing token");
 
-      // ✅ สร้าง AddressModel
+      final loc = selectedLocation.value;
+
       final address = AddressModel(
         id: '',
-        label: labelController.text.trim().isEmpty
-            ? 'ที่อยู่ใหม่'
-            : labelController.text.trim(),
-        recipientName: recipientNameController.text.trim(),
-        phone: phoneController.text.trim(),
-        addressLine: addressDetailController.text.trim(),
-        subDistrict: subDistrictController.text.trim(),
-        district: districtController.text.trim(),
-        province: provinceController.text.trim(),
-        postalCode: postalCodeController.text.trim(),
-        lat: selectedLocation!.latitude,
-        lng: selectedLocation!.longitude,
+        label: label.value.isEmpty ? 'ที่อยู่ใหม่' : label.value,
+        recipientName: recipientName.value,
+        phone: phone.value,
+        addressLine: addressDetail.value,
+        subDistrict: subDistrict.value,
+        district: district.value,
+        province: province.value,
+        postalCode: postalCode.value,
+        lat: loc?.latitude ?? 0,
+        lng: loc?.longitude ?? 0,
         isDefault: false,
       );
 
-      // ✅ บันทึกผ่าน API → Firestore backend
-      await api.createAddress(token, address);
-
-      saving = false;
-      notifyListeners();
-      return true;
+      final result = await api.createAddress(token, address);
+      saving.value = false;
+      return result;
     } catch (e) {
-      errorMessage = 'บันทึกไม่สำเร็จ: ${e.toString()}';
-      saving = false;
-      notifyListeners();
-      return false;
+      errorMessage.value = e.toString();
+      saving.value = false;
+      return null;
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 🔹 ล้างข้อมูลเมื่อออกจากหน้า
-  // ---------------------------------------------------------------------------
-  @override
-  void dispose() {
-    labelController.dispose();
-    recipientNameController.dispose();
-    phoneController.dispose();
-    addressDetailController.dispose();
-    subDistrictController.dispose();
-    districtController.dispose();
-    provinceController.dispose();
-    postalCodeController.dispose();
-    super.dispose();
   }
 }

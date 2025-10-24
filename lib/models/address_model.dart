@@ -1,11 +1,11 @@
 class AddressModel {
-  final String id; // สร้างบน backend
-  final String label; // บ้าน/ที่ทำงาน/อื่นๆ
-  final String recipientName; // ชื่อผู้รับ
+  final String id;
+  final String label;
+  final String recipientName;
   final String phone;
-  final String addressLine; // บ้านเลขที่ ซอย ถนน
-  final String subDistrict; // ตำบล/แขวง
-  final String district; // อำเภอ/เขต
+  final String addressLine;
+  final String subDistrict;
+  final String district;
   final String province;
   final String postalCode;
   final double lat;
@@ -24,35 +24,37 @@ class AddressModel {
     required this.postalCode,
     required this.lat,
     required this.lng,
-    this.isDefault = false,
+    required this.isDefault,
   });
 
-  factory AddressModel.fromJson(Map<String, dynamic> j) => AddressModel(
-    id: j['id'] ?? j['addressId'] ?? '',
-    label: j['label'] ?? '',
-    recipientName: j['recipientName'] ?? '',
-    phone: j['phone'] ?? '',
-    addressLine: j['addressLine'] ?? '',
-    subDistrict: j['subDistrict'] ?? '',
-    district: j['district'] ?? '',
-    province: j['province'] ?? '',
-    postalCode: j['postalCode'] ?? '',
-    lat: (j['lat'] as num).toDouble(),
-    lng: (j['lng'] as num).toDouble(),
-    isDefault: j['isDefault'] ?? false,
-  );
+  factory AddressModel.fromJson(Map<String, dynamic> json) {
+    return AddressModel(
+      id: json['id'] ?? json['address_id'] ?? '',
+      label: json['label'] ?? '',
+      recipientName: json['recipientName'] ?? '',
+      phone: json['phone'] ?? '',
+      addressLine: json['address_detail'] ?? '',
+      subDistrict: json['subDistrict'] ?? '',
+      district: json['district'] ?? '',
+      province: json['province'] ?? '',
+      postalCode: json['postalCode'] ?? '',
+      lat: (json['gps_latitude'] ?? 0).toDouble(),
+      lng: (json['gps_longitude'] ?? 0).toDouble(),
+      isDefault: json['isDefault'] ?? false,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
-    'label': label,
-    'recipientName': recipientName,
-    'phone': phone,
-    'addressLine': addressLine,
-    'subDistrict': subDistrict,
-    'district': district,
-    'province': province,
-    'postalCode': postalCode,
-    'lat': lat,
-    'lng': lng,
-    'isDefault': isDefault,
+    "label": label,
+    "recipientName": recipientName,
+    "phone": phone,
+    "address_detail": addressLine,
+    "subDistrict": subDistrict,
+    "district": district,
+    "province": province,
+    "postalCode": postalCode,
+    "gps_latitude": lat,
+    "gps_longitude": lng,
+    "isDefault": isDefault,
   };
 }

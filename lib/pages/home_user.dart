@@ -1,8 +1,11 @@
+import 'package:deliveryapp/pages/parcel.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:deliveryapp/pages/profile.dart';
-import 'package:deliveryapp/services/auth_service.dart'; // ← ใช้ getMe()
+import 'package:deliveryapp/services/auth_service.dart';
+import 'package:get/get.dart';
+import 'package:deliveryapp/pages/parcel_create.dart';
 
 class UserHomePage extends StatefulWidget {
   const UserHomePage({super.key});
@@ -130,14 +133,27 @@ class _UserHomePageState extends State<UserHomePage> {
                         title: "ส่งพัสดุ",
                         subtitle: "สะดวกและง่าย",
                         color: Colors.orange,
-                        onTap: () {},
+                        onTap: () {
+                          Get.to(
+                            () => const ParcelCreatePage(),
+                            transition: Transition.rightToLeft,
+                            duration: const Duration(milliseconds: 300),
+                          );
+                        },
                       ),
+
                       _buildMenuCard(
                         icon: Icons.bookmark,
                         title: "สถานะพัสดุ",
                         subtitle: "ติดตามสถานะได้ตลอด",
                         color: Colors.green,
-                        onTap: () {},
+                        onTap: () {
+                          Get.to(
+                            () => const ParcelPage(),
+                            transition: Transition.rightToLeft,
+                            duration: const Duration(milliseconds: 300),
+                          );
+                        },
                       ),
                       _buildMenuCard(
                         icon: Icons.inventory,

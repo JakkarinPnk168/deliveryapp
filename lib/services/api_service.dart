@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/user_model.dart';
-import '../models/address_model.dart'; // ✅ ต้องมี import นี้
+import '../models/address_model.dart';
 import '../config/app_config.dart';
 
 class ApiService {
@@ -43,7 +43,6 @@ class ApiService {
     File? imageFile,
   }) async {
     final url = Uri.parse('$baseUrl/api/users/me');
-
     final request = http.MultipartRequest('PUT', url)
       ..headers['Authorization'] = 'Bearer $token';
 
@@ -53,7 +52,7 @@ class ApiService {
     if (imageFile != null) {
       request.files.add(
         await http.MultipartFile.fromPath(
-          'profileImage', // ฟิลด์ใน backend
+          'profileImage',
           imageFile.path,
           contentType: MediaType('image', _guessExt(imageFile.path)),
         ),
@@ -94,20 +93,23 @@ class ApiService {
 
     if (res.statusCode == 200) {
       final body = jsonDecode(res.body);
-      final List data = body['data'] ?? body;
+      final List data = body['data'] ?? [];
       return data.map((e) => AddressModel.fromJson(e)).toList();
+    } else {
+      throw HttpException(
+        'Fetch addresses failed: ${res.statusCode} ${res.body}',
+      );
     }
-
-    throw HttpException(
-      'Fetch addresses failed: ${res.statusCode} ${res.body}',
-    );
   }
 
   // ---------------------------------------------------------------------------
-  // 🔹 4. เพิ่มที่อยู่ใหม่ (POST → Firestore)
+  // 🔹 4. เพิ่มที่อยู่ใหม่ (POST)
   // ---------------------------------------------------------------------------
   Future<AddressModel> createAddress(String token, AddressModel address) async {
     final url = Uri.parse('$baseUrl/api/users/me/addresses');
+
+    // ✅ ใช้ address.toJson() เพื่อส่งข้อมูลครบทุกฟิลด์
+    final body = jsonEncode(address.toJson());
 
     final res = await _client.post(
       url,
@@ -115,17 +117,13 @@ class ApiService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        "address_detail": address.addressLine,
-        "gps_latitude": address.lat,
-        "gps_longitude": address.lng,
-        "isDefault": address.isDefault,
-      }),
+      body: body,
     );
 
+    // ✅ ตรวจสอบสถานะการตอบกลับ
     if (res.statusCode == 201 || res.statusCode == 200) {
-      final Map<String, dynamic> body = jsonDecode(res.body);
-      final data = body['data'] ?? body;
+      final Map<String, dynamic> json = jsonDecode(res.body);
+      final data = json['data'] ?? json;
       return AddressModel.fromJson(data);
     }
 
@@ -133,23 +131,58 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------------
-  // 🔹 5. แก้ไขที่อยู่
+  // 🔹 5. ดึงข้อมูลที่อยู่เดี่ยว (GET /:id)
+  // ---------------------------------------------------------------------------
+  Future<AddressModel> getAddressById(String token, String addressId) async {
+    final url = Uri.parse('$baseUrl/api/users/me/addresses/$addressId');
+    final res = await _client.get(
+      url,
+      headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'},
+    );
+    print("🟢 Response body = ${res.body}");
+    if (res.statusCode == 200) {
+      final body = jsonDecode(res.body);
+      final data = body['data'] ?? body;
+      return AddressModel.fromJson(data);
+    } else {
+      throw HttpException(
+        'Fetch address failed: ${res.statusCode} ${res.body}',
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🔹 6. แก้ไขที่อยู่ (PUT)
   // ---------------------------------------------------------------------------
   Future<AddressModel> updateAddress(
     String token,
     String addressId, {
+    String? label,
+    String? recipientName,
+    String? phone,
     String? address_detail,
+    String? subDistrict,
+    String? district,
+    String? province,
+    String? postalCode,
     double? gps_latitude,
     double? gps_longitude,
     bool? isDefault,
   }) async {
     final url = Uri.parse('$baseUrl/api/users/me/addresses/$addressId');
-    final body = {
-      if (address_detail != null) 'address_detail': address_detail,
-      if (gps_latitude != null) 'gps_latitude': gps_latitude,
-      if (gps_longitude != null) 'gps_longitude': gps_longitude,
-      if (isDefault != null) 'isDefault': isDefault,
-    };
+
+    final Map<String, dynamic> payload = {};
+    if (label != null) payload['label'] = label;
+    if (recipientName != null) payload['recipientName'] = recipientName;
+    if (phone != null) payload['phone'] = phone;
+    if (address_detail != null) payload['address_detail'] = address_detail;
+    if (subDistrict != null) payload['subDistrict'] = subDistrict;
+    if (district != null) payload['district'] = district;
+    if (province != null) payload['province'] = province;
+    if (postalCode != null) payload['postalCode'] = postalCode;
+    if (gps_latitude != null) payload['gps_latitude'] = gps_latitude;
+    if (gps_longitude != null) payload['gps_longitude'] = gps_longitude;
+    if (isDefault != null) payload['isDefault'] = isDefault;
 
     final res = await _client.put(
       url,
@@ -157,12 +190,12 @@ class ApiService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode(body),
+      body: jsonEncode(payload),
     );
 
     if (res.statusCode == 200) {
-      final Map<String, dynamic> body = jsonDecode(res.body);
-      final data = body['data'] ?? body;
+      final Map<String, dynamic> json = jsonDecode(res.body);
+      final data = json['data'] ?? json;
       return AddressModel.fromJson(data);
     }
 
@@ -170,7 +203,7 @@ class ApiService {
   }
 
   // ---------------------------------------------------------------------------
-  // 🔹 6. ลบที่อยู่
+  // 🔹 7. ลบที่อยู่ (DELETE)
   // ---------------------------------------------------------------------------
   Future<void> deleteAddress(String token, String addressId) async {
     final url = Uri.parse('$baseUrl/api/users/me/addresses/$addressId');
@@ -182,6 +215,28 @@ class ApiService {
     if (res.statusCode != 200) {
       throw HttpException('Delete failed: ${res.statusCode} ${res.body}');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 🔹 8. ตั้งค่าที่อยู่เริ่มต้น (optional ฟีเจอร์เสริม)
+  // ---------------------------------------------------------------------------
+  Future<AddressModel> setDefaultAddress(String token, String addressId) async {
+    final url = Uri.parse('$baseUrl/api/users/me/addresses/$addressId');
+    final res = await _client.put(
+      url,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'isDefault': true}),
+    );
+
+    if (res.statusCode == 200) {
+      final Map<String, dynamic> json = jsonDecode(res.body);
+      final data = json['data'] ?? json;
+      return AddressModel.fromJson(data);
+    }
+    throw HttpException('Set default failed: ${res.statusCode} ${res.body}');
   }
 
   // ---------------------------------------------------------------------------
