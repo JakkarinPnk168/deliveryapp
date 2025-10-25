@@ -1,10 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:awesome_dialog/awesome_dialog.dart'; // ✅ เพิ่ม SweetAlert
-import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/address_model.dart';
 
@@ -21,6 +20,14 @@ class AddressAddController extends GetxController {
 
   Rxn<LatLng> selectedLocation = Rxn<LatLng>();
 
+  // ✅ ใช้ TextEditingController ถาวร
+  final addressDetailController = TextEditingController();
+  final subDistrictController = TextEditingController();
+  final districtController = TextEditingController();
+  final provinceController = TextEditingController();
+  final postalCodeController = TextEditingController();
+
+  // ถ้าอยากเก็บเป็น observable ด้วย
   var label = ''.obs;
   var recipientName = ''.obs;
   var phone = ''.obs;
@@ -29,6 +36,37 @@ class AddressAddController extends GetxController {
   var district = ''.obs;
   var province = ''.obs;
   var postalCode = ''.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    // sync controller ↔ observable
+    addressDetailController.addListener(() {
+      addressDetail.value = addressDetailController.text;
+    });
+    subDistrictController.addListener(() {
+      subDistrict.value = subDistrictController.text;
+    });
+    districtController.addListener(() {
+      district.value = districtController.text;
+    });
+    provinceController.addListener(() {
+      province.value = provinceController.text;
+    });
+    postalCodeController.addListener(() {
+      postalCode.value = postalCodeController.text;
+    });
+  }
+
+  @override
+  void onClose() {
+    addressDetailController.dispose();
+    subDistrictController.dispose();
+    districtController.dispose();
+    provinceController.dispose();
+    postalCodeController.dispose();
+    super.onClose();
+  }
 
   void setSelected(LatLng position) {
     selectedLocation.value = position;
@@ -52,9 +90,7 @@ class AddressAddController extends GetxController {
         final postal = (place.postalCode ?? '').trim();
         final country = (place.country ?? '').trim();
 
-        if (street.contains('+') && street.length <= 15) {
-          street = '';
-        }
+        if (street.contains('+') && street.length <= 15) street = '';
 
         final line1 = [
           if (street.isNotEmpty) street,
@@ -68,12 +104,12 @@ class AddressAddController extends GetxController {
           if (country.isNotEmpty) country,
         ].join(', ');
 
-        addressDetail.value = "$line1\n$line2";
-
-        subDistrict.value = subLocality;
-        district.value = locality;
-        province.value = admin;
-        postalCode.value = postal;
+        // ✅ set ค่าเข้า controller
+        addressDetailController.text = "$line1\n$line2";
+        subDistrictController.text = subLocality;
+        districtController.text = locality;
+        provinceController.text = admin;
+        postalCodeController.text = postal;
       } else {
         errorMessage.value = 'No placemark found for this location.';
       }
@@ -111,9 +147,6 @@ class AddressAddController extends GetxController {
     return LatLng(pos.latitude, pos.longitude);
   }
 
-  // ---------------------------------------------------------------------------
-  // ✅ ปรับส่วนนี้ให้ใช้ SweetAlert แสดงผล
-  // ---------------------------------------------------------------------------
   Future<AddressModel?> submit() async {
     if (saving.value) return null;
     saving.value = true;
@@ -129,11 +162,11 @@ class AddressAddController extends GetxController {
         label: label.value.isEmpty ? 'ที่อยู่ใหม่' : label.value,
         recipientName: recipientName.value,
         phone: phone.value,
-        addressLine: addressDetail.value,
-        subDistrict: subDistrict.value,
-        district: district.value,
-        province: province.value,
-        postalCode: postalCode.value,
+        addressLine: addressDetailController.text,
+        subDistrict: subDistrictController.text,
+        district: districtController.text,
+        province: provinceController.text,
+        postalCode: postalCodeController.text,
         lat: loc?.latitude ?? 0,
         lng: loc?.longitude ?? 0,
         isDefault: false,

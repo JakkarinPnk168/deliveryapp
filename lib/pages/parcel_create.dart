@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class MapControllerX extends GetxController {
   var selectedLocation = Rxn<LatLng>();
@@ -204,13 +205,70 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
   }
 
   // ✅ ถ่ายรูปหลักฐาน
+  // ✅ ถ่ายหรือเลือกรูปหลักฐาน (รองรับกล้องจริง)
   Future<void> _pickProofImage() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.camera);
-    if (picked != null) {
-      setState(() => _proofImage = File(picked.path));
-      print("📷 ถ่ายรูปหลักฐาน ${picked.path}");
+    final cameraStatus = await Permission.camera.request();
+    final storageStatus = await Permission.photos.request();
+
+    if (cameraStatus.isDenied || storageStatus.isDenied) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚠️ กรุณาอนุญาตการเข้าถึงกล้องและคลังรูปภาพก่อน"),
+        ),
+      );
+      return;
     }
+
+    final picker = ImagePicker();
+
+    // 🧩 แสดงตัวเลือกให้ผู้ใช้เลือก
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.green),
+              title: const Text('ถ่ายรูปด้วยกล้อง'),
+              onTap: () async {
+                Navigator.pop(context);
+                final picked = await picker.pickImage(
+                  source: ImageSource.camera,
+                  imageQuality: 80,
+                );
+                if (picked != null) {
+                  setState(() => _proofImage = File(picked.path));
+                  print("📷 ถ่ายรูปหลักฐาน ${picked.path}");
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.blue),
+              title: const Text('เลือกรูปจากแกลเลอรี่'),
+              onTap: () async {
+                Navigator.pop(context);
+                final picked = await picker.pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 80,
+                );
+                if (picked != null) {
+                  setState(() => _proofImage = File(picked.path));
+                  print("🖼️ เลือกรูปจากแกลเลอรี่ ${picked.path}");
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close, color: Colors.redAccent),
+              title: const Text('ยกเลิก'),
+              onTap: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ✅ ส่งพัสดุ

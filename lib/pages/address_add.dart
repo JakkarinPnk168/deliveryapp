@@ -56,13 +56,13 @@ class _AddressAddPageState extends State<AddressAddPage> {
       appBar: AppBar(
         backgroundColor: primaryGreen,
         elevation: 0,
+        automaticallyImplyLeading: true,
         title: const Text(
           'เพิ่มที่อยู่',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,9 +95,7 @@ class _AddressAddPageState extends State<AddressAddPage> {
         options: MapOptions(
           initialCenter: latLng,
           initialZoom: 15.0,
-          onTap: (tapPosition, point) {
-            controller.setSelected(point);
-          },
+          onTap: (tapPosition, point) => controller.setSelected(point),
         ),
         children: [
           TileLayer(
@@ -176,34 +174,24 @@ class _AddressAddPageState extends State<AddressAddPage> {
             child: ElevatedButton.icon(
               onPressed: () async {
                 final ok = await controller.submit();
-
                 if (ok != null) {
                   AwesomeDialog(
                     context: context,
-                    dialogType: DialogType.noHeader, // ✅ ไม่มีวงกลมด้านบน
+                    dialogType: DialogType.noHeader,
                     animType: AnimType.bottomSlide,
-                    dialogBackgroundColor: Colors.white, // ✅ พื้นหลังธรรมดา
+                    dialogBackgroundColor: Colors.white,
                     title: 'เพิ่มที่อยู่สำเร็จ ✅',
                     desc: 'ระบบได้บันทึกที่อยู่ของคุณเรียบร้อยแล้ว',
                     btnOkText: 'ตกลง',
                     btnOkColor: const Color(0xFF20C65A),
                     btnOkOnPress: () async {
                       await _loadSavedAddresses();
-                      final token = await _token();
-                      if (token != null) {
-                        final addresses = await controller.api.getAddresses(
-                          token,
-                        );
-                        setState(() {
-                          savedAddresses = addresses;
-                        });
-                      }
                     },
                   ).show();
                 } else {
                   AwesomeDialog(
                     context: context,
-                    dialogType: DialogType.noHeader, // ✅ ไม่มีวงกลม
+                    dialogType: DialogType.noHeader,
                     animType: AnimType.bottomSlide,
                     dialogBackgroundColor: Colors.white,
                     title: 'เกิดข้อผิดพลาด ❌',
@@ -265,23 +253,21 @@ class _AddressAddPageState extends State<AddressAddPage> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          _textField("รายละเอียดที่อยู่", controller.addressDetail),
-          _textField("ตำบล/แขวง", controller.subDistrict),
-          _textField("อำเภอ/เขต", controller.district),
-          _textField("จังหวัด", controller.province),
-          _textField("รหัสไปรษณีย์", controller.postalCode),
+          _textField("รายละเอียดที่อยู่", controller.addressDetailController),
+          _textField("ตำบล/แขวง", controller.subDistrictController),
+          _textField("อำเภอ/เขต", controller.districtController),
+          _textField("จังหวัด", controller.provinceController),
+          _textField("รหัสไปรษณีย์", controller.postalCodeController),
         ],
       ),
     );
   }
 
-  Widget _textField(String label, RxString value) {
-    final textCtrl = TextEditingController(text: value.value);
-    textCtrl.addListener(() => value.value = textCtrl.text);
+  Widget _textField(String label, TextEditingController controller) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
-        controller: textCtrl,
+        controller: controller,
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -311,7 +297,6 @@ class _AddressAddPageState extends State<AddressAddPage> {
       ),
       child: Column(
         children: savedAddresses.map((addr) {
-          // ✅ รวมข้อมูลที่อยู่ให้ครบเป็น 1 บรรทัด
           final fullAddress = [
             if (addr.addressLine.isNotEmpty) addr.addressLine,
             if (addr.subDistrict.isNotEmpty) "ต.${addr.subDistrict}",
@@ -329,7 +314,6 @@ class _AddressAddPageState extends State<AddressAddPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ✅ แสดง address_detail เป็นหัวข้อแทนคำว่า “ที่อยู่ใหม่”
                         Text(
                           addr.addressLine.isNotEmpty
                               ? addr.addressLine
@@ -339,11 +323,10 @@ class _AddressAddPageState extends State<AddressAddPage> {
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
-                            color: Colors.black, // ✅ สีดำเข้ม
+                            color: Colors.black,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        // ✅ แสดงข้อมูลรวมด้านล่าง
                         Text(
                           fullAddress,
                           maxLines: 1,
@@ -361,8 +344,6 @@ class _AddressAddPageState extends State<AddressAddPage> {
                       final result = await Get.to(
                         () => AddressEditPage(addressId: addr.id),
                       );
-
-                      // ✅ รีเฟรชเมื่อมีการแก้ไข/ลบที่อยู่
                       if (result == true) {
                         await _loadSavedAddresses();
                       }
