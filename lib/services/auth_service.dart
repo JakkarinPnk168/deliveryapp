@@ -72,6 +72,9 @@ class AuthService {
     return token == null ? {} : {'Authorization': 'Bearer $token'};
   }
 
+  Future<Map<String, String>> getAuthHeader() async {
+    return await _authHeader();
+  }
   // ------------------ ตรวจสอบเบอร์โทร ------------------
 
   Future<Map<String, dynamic>> checkPhone(String phone) async {

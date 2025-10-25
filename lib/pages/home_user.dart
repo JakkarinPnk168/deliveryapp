@@ -155,13 +155,6 @@ class _UserHomePageState extends State<UserHomePage> {
                           );
                         },
                       ),
-                      _buildMenuCard(
-                        icon: Icons.inventory,
-                        title: "พัสดุของฉัน",
-                        subtitle: "",
-                        color: Colors.blue,
-                        onTap: () {},
-                      ),
                     ],
                   ),
                 ),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:deliveryapp/config/app_config.dart';
 import 'package:deliveryapp/models/parcel_item_model.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ParcelCreateController {
   final headers = {"Content-Type": "application/json"};
@@ -14,12 +15,24 @@ class ParcelCreateController {
     required String receiverId,
     required ReceiverAddress receiverAddress,
     required List<ParcelItem> items,
+    File? proofImage, // ✅ เพิ่มรูปหลักฐาน
   }) async {
     try {
       final uri = Uri.parse("${AppConfig.apiBaseUrl}/api/parcels");
       final request = http.MultipartRequest("POST", uri);
 
-      // ✅ ฟิลด์ text
+      // 🧭 Debug Log
+      print("🚀 [CREATE PARCEL]");
+      print("📦 Sender ID  : $senderId");
+      print("📦 Receiver ID: $receiverId");
+      print("📍 Address     : ${receiverAddress.toJson()}");
+      print("🧾 Items Count : ${items.length}");
+
+      if (senderId == receiverId) {
+        print("⚠️ [เตือน] ผู้ส่งและผู้รับเป็นคนเดียวกัน!");
+      }
+
+      // ✅ ฟิลด์ข้อความ
       request.fields["senderId"] = senderId;
       request.fields["receiverId"] = receiverId;
       request.fields["receiverAddress"] = jsonEncode(receiverAddress.toJson());
@@ -27,18 +40,37 @@ class ParcelCreateController {
         items.map((e) => e.toJson()).toList(),
       );
 
-      // ✅ แนบรูปภาพสินค้า
+      // ✅ แนบรูปภาพสินค้า (ถ้ามี)
       for (final item in items) {
         if (item.imageFile != null && File(item.imageFile!.path).existsSync()) {
+          print("🖼️ แนบรูปภาพสินค้า: ${item.imageFile!.path}");
           request.files.add(
             await http.MultipartFile.fromPath("images", item.imageFile!.path),
           );
         }
       }
 
+      // ✅ แนบรูปหลักฐานการส่ง (จำเป็น)
+      if (proofImage != null && File(proofImage.path).existsSync()) {
+        print("📸 แนบรูปหลักฐาน: ${proofImage.path}");
+        request.files.add(
+          await http.MultipartFile.fromPath("proofImage", proofImage.path),
+        );
+      } else {
+        print("⚠️ [เตือน] ไม่มีรูปหลักฐานแนบมาด้วย");
+        return {
+          "success": false,
+          "message": "กรุณาถ่ายรูปหลักฐานก่อนสร้างพัสดุ",
+        };
+      }
+
       // ✅ ส่งคำขอไป Backend
+      print("🌐 ส่งคำขอไปที่: $uri");
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
+
+      print("📩 สถานะตอบกลับ: ${response.statusCode}");
+      print("📨 ตอบกลับจากเซิร์ฟเวอร์: ${response.body}");
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
@@ -47,8 +79,8 @@ class ParcelCreateController {
           return {
             "success": true,
             "message": body["message"] ?? "สร้างพัสดุสำเร็จ",
-            "orderIds": body["orderIds"] ?? [],
-            "data": body,
+            "orderId": body["data"]?["orderId"],
+            "data": body["data"],
           };
         } else {
           print("⚠️ สร้างพัสดุไม่สำเร็จ: ${body["message"]}");
@@ -70,12 +102,22 @@ class ParcelCreateController {
       final uri = Uri.parse(
         "${AppConfig.apiBaseUrl}/api/users/search?phone=$phone",
       );
+      print("📞 [SEARCH RECEIVER] $uri");
+
       final res = await http.get(uri, headers: headers);
+      print("📩 Status: ${res.statusCode}");
+      print("📨 Response: ${res.body}");
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        if (data["success"] == true) {
+          print(
+            "✅ พบผู้รับ: ${data['data']?['name']} (${data['data']?['userId']})",
+          );
+        }
         return data;
       }
+
       print("❌ ค้นหาผู้รับไม่สำเร็จ: ${res.body}");
       return null;
     } catch (e) {
@@ -90,11 +132,14 @@ class ParcelCreateController {
       final uri = Uri.parse(
         "${AppConfig.apiBaseUrl}/api/parcels/sender/$senderId",
       );
+      print("📦 [GET SENDER PARCELS] $uri");
+
       final res = await http.get(uri, headers: headers);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data["success"] == true) {
+          print("✅ พบ ${data['data']?.length ?? 0} พัสดุที่ส่ง");
           return data['data'] ?? [];
         }
       }
@@ -112,11 +157,13 @@ class ParcelCreateController {
       final uri = Uri.parse(
         "${AppConfig.apiBaseUrl}/api/parcels/receiver/$receiverId",
       );
-      final res = await http.get(uri, headers: headers);
+      print("📦 [GET RECEIVER PARCELS] $uri");
 
+      final res = await http.get(uri, headers: headers);
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data["success"] == true) {
+          print("✅ พบ ${data['data']?.length ?? 0} พัสดุที่ได้รับ");
           return data['data'] ?? [];
         }
       }
@@ -128,7 +175,7 @@ class ParcelCreateController {
     }
   }
 
-  /// 📸 อัปโหลดรูปหลักฐาน (Proof of Delivery)
+  /// 📸 อัปโหลดรูปหลักฐานการส่งสินค้า
   Future<Map<String, dynamic>> uploadProofImage(
     String orderId,
     File imageFile,
@@ -137,6 +184,7 @@ class ParcelCreateController {
       final uri = Uri.parse(
         "${AppConfig.apiBaseUrl}/api/orders/$orderId/proof",
       );
+      print("📤 [UPLOAD PROOF] $uri");
 
       final request = http.MultipartRequest('POST', uri);
       request.files.add(
@@ -145,6 +193,9 @@ class ParcelCreateController {
 
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
+
+      print("📩 สถานะตอบกลับ: ${response.statusCode}");
+      print("📨 ตอบกลับจากเซิร์ฟเวอร์: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -161,22 +212,69 @@ class ParcelCreateController {
     }
   }
 
-  /// 👥 ดึงรายชื่อผู้ใช้และไรเดอร์ทั้งหมด (ใช้สำหรับ Dropdown เลือกผู้รับ)
+  /// 👥 ดึงรายชื่อผู้ใช้และไรเดอร์ทั้งหมด (ใช้ใน Dropdown ผู้รับ)
   Future<List<Map<String, dynamic>>> getAllContacts() async {
     try {
-      final uri = Uri.parse("${AppConfig.apiBaseUrl}/api/users/all");
+      // ✅ ดึง userId ปัจจุบันจาก SecureStorage
+      final storage = const FlutterSecureStorage();
+      final currentUserId = await storage.read(key: "userId");
+
+      // ✅ สร้าง URI ที่ปลอดภัย (รองรับ uid)
+      final uri = Uri.parse(
+        "${AppConfig.apiBaseUrl}/api/users/all${currentUserId != null ? '?uid=$currentUserId' : ''}",
+      );
+
+      final headers = {"Content-Type": "application/json"};
+      print("🌐 [GET ALL CONTACTS] เรียกใช้งาน: $uri");
+
+      // ✅ ส่งคำขอ GET ไปยัง backend
       final res = await http.get(uri, headers: headers);
 
+      print("📩 [RESPONSE STATUS] ${res.statusCode}");
+
+      // ✅ ตรวจสอบว่า API ตอบกลับ 200
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data["success"] == true) {
-          final list = List<Map<String, dynamic>>.from(data["data"] ?? []);
-          print("✅ โหลดรายชื่อผู้ใช้ทั้งหมดสำเร็จ (${list.length} รายการ)");
-          return list;
+        Map<String, dynamic>? data;
+        try {
+          data = jsonDecode(res.body);
+        } catch (e) {
+          print("⚠️ Response ไม่สามารถแปลง JSON ได้: ${res.body}");
+          return [];
+        }
+
+        if (data?["success"] == true && data?["data"] is List) {
+          final rawList = List<Map<String, dynamic>>.from(data!["data"]);
+
+          // ✅ Normalize ข้อมูลให้เป็นรูปแบบเดียวกัน
+          final list = rawList.map((user) {
+            final uid = user["userId"] ?? user["id"] ?? "";
+            return {
+              ...user,
+              "id": uid,
+              "userId": uid,
+              "name": user["name"] ?? "ไม่ระบุชื่อ",
+              "phone": user["phone"] ?? "-",
+              "profileImage": user["profileImage"] ?? "",
+              "role": user["role"] ?? "user",
+            };
+          }).toList();
+
+          // ✅ กรองตัวเองออกจากลิสต์ (ถ้ามี userId ปัจจุบัน)
+          final filtered = currentUserId != null
+              ? list.where((u) => u["id"] != currentUserId).toList()
+              : list;
+
+          print("✅ โหลดรายชื่อผู้ใช้สำเร็จ: ${filtered.length} รายการ");
+          print("   (กรอง userId ตัวเองออกแล้ว: $currentUserId)");
+
+          return filtered;
+        } else {
+          print("⚠️ API success=false หรือ data ไม่ใช่ List: ${res.body}");
+          return [];
         }
       }
 
-      print("❌ โหลดรายชื่อผู้ใช้ไม่สำเร็จ: ${res.body}");
+      print("❌ โหลดรายชื่อผู้ใช้ไม่สำเร็จ (${res.statusCode}): ${res.body}");
       return [];
     } catch (e) {
       print("🔥 Error getAllContacts: $e");

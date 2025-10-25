@@ -1,19 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../config/app_config.dart';
 
-/// ------------------------------------------------------------
-/// 🚚 OrdersService (ฝั่ง USER / SENDER)
-/// รองรับการสร้างพัสดุ / ดูพัสดุที่ส่ง / ดูพัสดุที่ได้รับ /
-/// อัปโหลดหลักฐาน / ค้นหาผู้รับด้วยเบอร์โทร / ดูรายละเอียดพัสดุ
-/// ------------------------------------------------------------
 class OrdersService {
   final String baseUrl = AppConfig.apiBaseUrl;
   final _storage = const FlutterSecureStorage();
 
-  // ✅ ดึง Header ที่มี JWT Token
+  /// ✅ ดึง Header ที่มี JWT Token
   Future<Map<String, String>> _authHeader() async {
     final token = await _storage.read(key: 'token');
     return token == null
@@ -49,6 +45,7 @@ class OrdersService {
   }) async {
     final uri = Uri.parse('$baseUrl/api/parcels');
     final req = http.MultipartRequest('POST', uri);
+    req.headers.addAll(await _authHeader()); // ✅ ใช้ header พร้อม token
 
     req.fields['senderId'] = senderId;
     req.fields['receiverId'] = receiverId;
@@ -107,6 +104,7 @@ class OrdersService {
   Future<Map<String, dynamic>> uploadProof(String orderId, File image) async {
     final uri = Uri.parse('$baseUrl/api/orders/$orderId/proof');
     final req = http.MultipartRequest('POST', uri);
+    req.headers.addAll(await _authHeader()); // ✅ แนบ token
     req.files.add(await http.MultipartFile.fromPath('image', image.path));
 
     final streamed = await req.send();
@@ -122,7 +120,7 @@ class OrdersService {
     }
   }
 
-  // ✅ 6. ดึงรายละเอียดพัสดุ (ใช้ในหน้า ParcelDetailPage)
+  // ✅ 6. ดึงรายละเอียดพัสดุ
   Future<Map<String, dynamic>> getParcelDetail(String orderId) async {
     final uri = Uri.parse('$baseUrl/api/parcels/$orderId');
     final res = await http.get(uri, headers: await _authHeader());
@@ -132,13 +130,9 @@ class OrdersService {
         res.statusCode < 300 &&
         map['success'] == true) {
       final data = map['data'] ?? {};
-      // ✅ เพิ่มตรวจสอบ proofImageUrl ให้แน่ใจว่ามีเสมอ
       return {
         ...data,
-        'proofImageUrl':
-            data['proofImageUrl'] ??
-            data['proof_image'] ??
-            '', // fallback ป้องกัน null
+        'proofImageUrl': data['proofImageUrl'] ?? data['proof_image'] ?? '',
       };
     } else {
       throw Exception(map['message'] ?? 'ไม่สามารถโหลดรายละเอียดพัสดุได้');
@@ -157,6 +151,97 @@ class OrdersService {
       return List<Map<String, dynamic>>.from(map['data'] ?? []);
     } else {
       throw Exception(map['message'] ?? 'ไม่สามารถโหลดรายชื่อผู้ใช้ได้');
+    }
+  }
+
+  // ✅ 8. อัปเดตสถานะ + แนบรูป (มี token)
+  Future<bool> updateOrderStatusWithImage({
+    required String orderId,
+    required int newStatus,
+    String? imagePath,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/api/orders/$orderId/status');
+      final req = http.MultipartRequest('POST', uri);
+      req.headers.addAll(await _authHeader()); // ✅ ใช้ token เดียวกัน
+      req.fields['status'] = newStatus.toString();
+
+      if (imagePath != null &&
+          imagePath.isNotEmpty &&
+          File(imagePath).existsSync()) {
+        req.files.add(await http.MultipartFile.fromPath('image', imagePath));
+      }
+
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+
+      if (res.statusCode == 200) {
+        return true;
+      } else {
+        print('Update status failed: ${res.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error updating status: $e');
+      return false;
+    }
+  }
+
+  // ✅ ใช้สำหรับ Pickup
+  Future<bool> updateOrderPickup({
+    required String orderId,
+    String? pickupImagePath,
+  }) {
+    return updateOrderStatusWithImage(
+      orderId: orderId,
+      newStatus: 3,
+      imagePath: pickupImagePath,
+    );
+  }
+
+  // ✅ ใช้สำหรับ Delivery
+  Future<bool> updateOrderDelivery({
+    required String orderId,
+    String? deliveryImagePath,
+  }) {
+    return updateOrderStatusWithImage(
+      orderId: orderId,
+      newStatus: 4,
+      imagePath: deliveryImagePath,
+    );
+  }
+
+  // ✅ 9. อัปเดตสถานะทั่วไป (รองรับ Uint8List)
+  Future<bool> updateOrderStatus({
+    required String orderId,
+    required int newStatus,
+    Uint8List? image,
+  }) async {
+    try {
+      final req = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/orders/$orderId/status'),
+      );
+      req.headers.addAll(await _authHeader()); // ✅ ใช้ token เดียวกัน
+      req.fields['status'] = newStatus.toString();
+
+      if (image != null) {
+        req.files.add(
+          http.MultipartFile.fromBytes(
+            'image',
+            image,
+            filename: 'status$image.jpg',
+          ),
+        );
+      }
+
+      final streamed = await req.send();
+      final res = await http.Response.fromStream(streamed);
+
+      return res.statusCode == 200;
+    } catch (e) {
+      print('Error updating status: $e');
+      return false;
     }
   }
 }

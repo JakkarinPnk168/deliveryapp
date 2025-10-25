@@ -23,26 +23,40 @@ class ParcelDetailController extends GetxController {
 
       final data = await _ordersService.getParcelDetail(orderId);
 
-      if (data.isNotEmpty) {
-        // ✅ ตรวจสอบและจัดโครงสร้างข้อมูลให้ปลอดภัย
+      if (data != null && data.isNotEmpty) {
+        // ✅ ดึง address และ proof image ให้ปลอดภัย
         final address = data['address'] ?? {};
-        final proofImage = data['proofImageUrl'] ?? data['proof_image'] ?? "";
+        final proofImage = data['proofImageUrl'] ?? data['proof_image'] ?? '';
 
+        // ✅ ปรับ lat/lng ให้เป็น double ปลอดภัย
+        final lat = double.tryParse(address['lat']?.toString() ?? '0') ?? 0;
+        final lng = double.tryParse(address['lng']?.toString() ?? '0') ?? 0;
+
+        // ✅ อัปเดตค่า parcel ทั้งหมด
         parcel.value = {
           ...data,
-          'address': address,
+          'address': {...address, 'lat': lat, 'lng': lng},
           'proofImageUrl': proofImage,
         };
 
         // ✅ ตั้งตำแหน่งผู้รับในแผนที่
-        if (address.isNotEmpty) {
-          receiverPosition.value = LatLng(
-            (address['lat'] ?? 0).toDouble(),
-            (address['lng'] ?? 0).toDouble(),
-          );
+        if (lat != 0 && lng != 0) {
+          receiverPosition.value = LatLng(lat, lng);
+        } else {
+          receiverPosition.value = null;
+        }
+
+        print("✅ โหลดรายละเอียดพัสดุสำเร็จ: ${data['orderId']}");
+        print("📍 พิกัดผู้รับ: ($lat, $lng)");
+        if (proofImage.isNotEmpty) {
+          print("📸 มีรูปหลักฐานแนบ: $proofImage");
+        } else {
+          print("⚠️ ไม่มีรูปหลักฐานในพัสดุนี้");
         }
       } else {
         parcel.value = {};
+        hasError.value = true;
+        print("⚠️ ไม่พบข้อมูลพัสดุใน response");
       }
     } catch (e) {
       print("🔥 Error fetchParcelDetail: $e");

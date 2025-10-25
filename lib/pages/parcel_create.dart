@@ -53,7 +53,23 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
     try {
       setState(() => loading = true);
       final list = await _controller.getAllContacts();
-      setState(() => allContacts = list);
+
+      // ✅ normalize ให้ทุก contact มีทั้ง id และ userId
+      final normalized = list.map((u) {
+        final uid = u['id'] ?? u['userId'];
+        return {
+          ...u,
+          'id': uid,
+          'userId': uid,
+          'name': u['name'] ?? "ไม่ระบุชื่อ",
+          'phone': u['phone'] ?? "-",
+          'profileImage': u['profileImage'] ?? "",
+          'role': u['role'] ?? "user",
+        };
+      }).toList();
+
+      setState(() => allContacts = normalized);
+      print("✅ โหลดรายชื่อผู้ใช้สำเร็จ (${normalized.length}) รายการ");
     } catch (e) {
       debugPrint("🔥 โหลดรายชื่อผู้ใช้ล้มเหลว: $e");
     } finally {
@@ -71,67 +87,106 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
       return;
     }
 
-    setState(() => loading = true);
-    final res = await _controller.searchReceiver(phone);
-    setState(() => loading = false);
+    try {
+      setState(() => loading = true);
+      final res = await _controller.searchReceiver(phone);
+      setState(() => loading = false);
 
-    if (res != null && res['success'] == true) {
-      final user = res['data'];
+      if (res != null && res['success'] == true) {
+        final user = res['data'];
 
-      // ✅ reset dropdown เพื่อไม่ให้ value ซ้ำกับ list
-      setState(() {
-        selectedReceiver = null;
-        receiverAddresses = [];
-      });
+        // ✅ reset state เก่า ป้องกันซ้ำ
+        setState(() {
+          print("📞 เรียก _setNewReceiver() จากการค้นหาเบอร์โทร");
+          selectedReceiver = null;
+          receiverAddresses = [];
+          receiverId = null;
+        });
 
-      // ✅ แสดงผลการค้นหาแยกจาก dropdown
-      setState(() {
-        selectedReceiver = {
-          'id': user['userId'],
-          'name': user['name'] ?? "ไม่ระบุชื่อ",
-          'phone': user['phone'],
-          'profileImage': user['profileImage'] ?? "",
-          'role': 'user',
-        };
-        receiverId = user['userId'];
-        receiverAddresses = List<Map<String, dynamic>>.from(
+        // ✅ ใช้ _setNewReceiver เพื่อให้ format เดียวกันเสมอ
+        _setNewReceiver(user);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('✅ พบผู้รับในระบบ')));
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('❌ ไม่พบผู้รับในระบบ')));
+      }
+    } catch (e) {
+      setState(() => loading = false);
+      debugPrint("🔥 Error _searchReceiverByPhone: $e");
+    }
+  }
+
+  // ✅ ตั้งค่าผู้รับใหม่จากข้อมูลที่เลือกหรือค้นหา
+  void _setNewReceiver(Map<String, dynamic> user) {
+    final uid = (user['userId'] ?? user['id'])?.toString().trim();
+    if (uid == null || uid.isEmpty) {
+      print("⚠️ userId ของผู้รับว่างหรือไม่ถูกต้อง: $user");
+      return;
+    }
+
+    setState(() {
+      selectedReceiver = {
+        'id': uid,
+        'userId': uid,
+        'name': user['name'] ?? "ไม่ระบุชื่อ",
+        'phone': user['phone'] ?? "-",
+        'profileImage': user['profileImage'] ?? "",
+        'role': user['role'] ?? 'user',
+        'addresses': user['addresses'] ?? [],
+      };
+      receiverId = uid;
+      receiverAddresses = List<Map<String, dynamic>>.from(
+        user['addresses'] ?? [],
+      );
+    });
+
+    print("👤 ตั้งค่าผู้รับใหม่แล้ว:");
+    print("   ↳ id       = $receiverId");
+    print("   ↳ name     = ${selectedReceiver!['name']}");
+    print("   ↳ phone    = ${selectedReceiver!['phone']}");
+    print("   ↳ addresses= ${receiverAddresses.length} รายการ");
+  }
+
+  // ✅ โหลดที่อยู่ของผู้รับจากเบอร์โทร
+  Future<void> _loadReceiverAddresses(String phone) async {
+    try {
+      setState(() => loading = true);
+      final res = await _controller.searchReceiver(phone);
+      setState(() => loading = false);
+
+      if (res != null && res['success'] == true) {
+        final user = res['data'];
+        final addresses = List<Map<String, dynamic>>.from(
           user['addresses'] ?? [],
         );
-      });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('✅ พบผู้รับในระบบ')));
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('❌ ไม่พบผู้รับในระบบ')));
-    }
-  }
+        setState(() {
+          receiverId = user['userId'];
+          receiverAddresses = addresses;
+        });
 
-  // ✅ โหลดที่อยู่จาก backend
-  Future<void> _loadReceiverAddresses(String phone) async {
-    setState(() => loading = true);
-    final res = await _controller.searchReceiver(phone);
-    setState(() => loading = false);
-
-    if (res != null && res['success'] == true) {
-      setState(() {
-        receiverId = res['data']['userId'];
-        receiverAddresses = List<Map<String, dynamic>>.from(
-          res['data']['addresses'] ?? [],
+        print(
+          "📍 โหลดที่อยู่ผู้รับ ${addresses.length} รายการ สำหรับ ${user['name']}",
         );
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ ไม่พบที่อยู่ผู้รับในระบบ')),
-      );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('❌ ไม่พบที่อยู่ผู้รับในระบบ')),
+        );
+      }
+    } catch (e) {
+      setState(() => loading = false);
+      debugPrint("🔥 Error _loadReceiverAddresses: $e");
     }
   }
 
-  // ✅ เพิ่มสินค้า
-  void _addItem() =>
-      setState(() => _items.add(ParcelItem(productName: "", imageFile: null)));
+  // ✅ เพิ่มสินค้าใหม่
+  void _addItem() {
+    setState(() => _items.add(ParcelItem(productName: "", imageFile: null)));
+    print("🛒 เพิ่มสินค้าใหม่ (${_items.length}) ชิ้น");
+  }
 
   // ✅ เลือกรูปสินค้า
   Future<void> _pickImage(int index) async {
@@ -144,6 +199,7 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
           imageFile: File(picked.path),
         );
       });
+      print("📸 เพิ่มรูปสินค้า ${picked.path}");
     }
   }
 
@@ -153,6 +209,7 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
     final picked = await picker.pickImage(source: ImageSource.camera);
     if (picked != null) {
       setState(() => _proofImage = File(picked.path));
+      print("📷 ถ่ายรูปหลักฐาน ${picked.path}");
     }
   }
 
@@ -160,15 +217,39 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
   Future<void> _submitParcel() async {
     try {
       final senderId = await storage.read(key: "userId");
+      print("🚀 เริ่มส่งพัสดุ");
+      print("📦 senderId  = $senderId");
+      print("📦 receiverId = $receiverId");
+
       if (senderId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('❌ กรุณาเข้าสู่ระบบก่อนส่งพัสดุ')),
         );
         return;
       }
+
       if (receiverId == null || _items.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('⚠️ กรุณากรอกข้อมูลให้ครบ')),
+        );
+        return;
+      }
+
+      // 🚫 ป้องกันผู้ส่งและผู้รับเป็นคนเดียวกัน
+      if (receiverId == senderId) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ ผู้ส่งและผู้รับต้องไม่เป็นคนเดียวกัน'),
+          ),
+        );
+        print("⚠️ ผู้ส่งและผู้รับเป็น ID เดียวกัน");
+        return;
+      }
+
+      // ✅ ถ้าไม่ได้ถ่ายรูปหลักฐาน ห้ามสร้างพัสดุ
+      if (_proofImage == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('⚠️ กรุณาถ่ายรูปหลักฐานก่อนสร้างพัสดุ')),
         );
         return;
       }
@@ -199,22 +280,36 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
         address = selectedAddress!;
       }
 
+      print("📍 ที่อยู่ผู้รับ: ${address.address}");
+
       setState(() => loading = true);
       final result = await _controller.createParcel(
         senderId: senderId,
         receiverId: receiverId!,
         receiverAddress: address,
         items: _items,
+        proofImage: _proofImage, // ✅ ส่งรูปหลักฐานไปด้วย
       );
+
       setState(() => loading = false);
+
+      print("📨 สร้างพัสดุผลลัพธ์: $result");
 
       if (result['success'] == true) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('✅ สร้างพัสดุสำเร็จ')));
+
         final senderCtrl = Get.find<ParcelController>();
         await senderCtrl.fetchSenderParcels(senderId);
+
         Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ สร้างพัสดุไม่สำเร็จ: ${result['message']}'),
+          ),
+        );
       }
     } catch (e) {
       setState(() => loading = false);
@@ -272,10 +367,13 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
                   // 🔽 Dropdown รายชื่อทั้งหมด (ป้องกัน crash)
                   DropdownButtonFormField<Map<String, dynamic>>(
                     isExpanded: true,
-                    value:
-                        allContacts.any((c) => identical(c, selectedReceiver))
-                        ? selectedReceiver
-                        : null,
+                    value: selectedReceiver == null
+                        ? null
+                        : allContacts.firstWhere(
+                            (c) => c['userId'] == selectedReceiver!['userId'],
+                            orElse: () =>
+                                <String, dynamic>{}, // ✅ map ว่างแทน null
+                          ),
                     decoration: InputDecoration(
                       labelText: "หรือเลือกผู้รับจากรายชื่อในระบบ",
                       border: OutlineInputBorder(
@@ -291,11 +389,8 @@ class _ParcelCreatePageState extends State<ParcelCreatePage> {
                       );
                     }).toList(),
                     onChanged: (value) async {
-                      if (value != null) {
-                        setState(() {
-                          selectedReceiver = value;
-                          receiverId = value['id'];
-                        });
+                      if (value != null && value.isNotEmpty) {
+                        _setNewReceiver(value);
                         await _loadReceiverAddresses(value['phone']);
                       }
                     },
